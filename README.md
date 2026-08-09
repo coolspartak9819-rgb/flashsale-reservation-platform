@@ -9,6 +9,9 @@ Go service that protects a limited inventory during a traffic spike. The first s
 - idempotency through the `Idempotency-Key` header;
 - PostgreSQL persistence with unique constraints for event seats and idempotency keys;
 - transactional seat locking with `SELECT FOR UPDATE`;
+- payment confirmation with `active`, `confirmed` and `expired` states;
+- transactional Outbox records for reservation creation, confirmation and expiration;
+- background expiration loop for abandoned reservations;
 - concurrent reservation test with 100 goroutines;
 - clear conflict responses for an already reserved seat.
 
@@ -32,6 +35,14 @@ k6 run load/k6-reservations.js
 ```
 
 The expected correctness signal is that responses are only `201 Created` or `409 Conflict`. A successful run must never oversell a seat.
+
+Confirm a payment:
+
+```bash
+curl -X POST http://localhost:8080/v1/reservations/<reservation_id>/confirm \\
+  -H 'Content-Type: application/json' \\
+  -d '{"payment_id":"payment-123"}'
+```
 
 Create an event:
 
