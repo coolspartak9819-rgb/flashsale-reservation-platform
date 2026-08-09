@@ -25,6 +25,14 @@ Run the PostgreSQL-backed API with Docker Compose:
 docker compose up --build
 ```
 
+Run the reservation load scenario after creating `flash-test` with 100 seats:
+
+```bash
+k6 run load/k6-reservations.js
+```
+
+The expected correctness signal is that responses are only `201 Created` or `409 Conflict`. A successful run must never oversell a seat.
+
 Create an event:
 
 ```bash
