@@ -24,6 +24,11 @@ type Store struct {
 	bySeat        map[string]string
 }
 
+type ReservationStore interface {
+	CreateEvent(domain.Event) error
+	Reserve(string, string, string, string, time.Duration) (domain.Reservation, error)
+}
+
 func New() *Store {
 	return &Store{
 		events:        make(map[string]domain.Event),

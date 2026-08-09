@@ -7,6 +7,8 @@ Go service that protects a limited inventory during a traffic spike. The first s
 - event creation with a fixed seat capacity;
 - seat reservation with a ten-minute TTL;
 - idempotency through the `Idempotency-Key` header;
+- PostgreSQL persistence with unique constraints for event seats and idempotency keys;
+- transactional seat locking with `SELECT FOR UPDATE`;
 - concurrent reservation test with 100 goroutines;
 - clear conflict responses for an already reserved seat.
 
@@ -15,6 +17,12 @@ Go service that protects a limited inventory during a traffic spike. The first s
 ```bash
 go test -race ./...
 go run ./cmd/api
+```
+
+Run the PostgreSQL-backed API with Docker Compose:
+
+```bash
+docker compose up --build
 ```
 
 Create an event:
@@ -34,4 +42,4 @@ curl -X POST http://localhost:8080/v1/events/concert-1/reservations \
   -d '{"user_id":"user-1","seat_id":"seat-42"}'
 ```
 
-The next iterations will replace the memory store with PostgreSQL transactions, add an outbox and payment timeout flow, then measure oversell protection under load.
+The next iterations will add an outbox and payment timeout flow, then measure oversell protection under load.

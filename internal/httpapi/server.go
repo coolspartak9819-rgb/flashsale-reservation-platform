@@ -12,10 +12,10 @@ import (
 )
 
 type Server struct {
-	store *store.Store
+	store store.ReservationStore
 }
 
-func New(store *store.Store) http.Handler {
+func New(store store.ReservationStore) http.Handler {
 	s := &Server{store: store}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
