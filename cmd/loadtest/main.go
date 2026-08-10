@@ -16,6 +16,7 @@ import (
 type result struct {
 	status  int
 	latency time.Duration
+	body    string
 }
 
 func main() {
@@ -39,18 +40,20 @@ func main() {
 			defer wg.Done()
 			for requestID := range jobs {
 				started := time.Now()
-				body, _ := json.Marshal(map[string]string{"user_id": fmt.Sprintf("load-user-%d", requestID), "seat_id": fmt.Sprintf("seat-%d", requestID%*seats+1)})
-				req, _ := http.NewRequest(http.MethodPost, *baseURL+"/v1/events/"+eventID+"/reservations", bytes.NewReader(body))
+				requestBody, _ := json.Marshal(map[string]string{"user_id": fmt.Sprintf("load-user-%d", requestID), "seat_id": fmt.Sprintf("seat-%d", requestID%*seats+1)})
+				req, _ := http.NewRequest(http.MethodPost, *baseURL+"/v1/events/"+eventID+"/reservations", bytes.NewReader(requestBody))
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Idempotency-Key", fmt.Sprintf("load-key-%d", requestID))
 				resp, err := client.Do(req)
 				status := http.StatusInternalServerError
+				responseText := ""
 				if err == nil {
 					status = resp.StatusCode
-					_, _ = io.Copy(io.Discard, resp.Body)
+					responseBody, _ := io.ReadAll(resp.Body)
+					responseText = string(responseBody)
 					resp.Body.Close()
 				}
-				results <- result{status: status, latency: time.Since(started)}
+				results <- result{status: status, latency: time.Since(started), body: responseText}
 				completed.Add(1)
 			}
 		}()
@@ -67,9 +70,13 @@ func main() {
 
 	latencies := make([]time.Duration, 0, *requests)
 	statusCounts := make(map[int]int)
+	errorBodies := make(map[string]int)
 	for item := range results {
 		latencies = append(latencies, item.latency)
 		statusCounts[item.status]++
+		if item.status != http.StatusCreated && item.status != http.StatusConflict {
+			errorBodies[item.body]++
+		}
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 	if len(latencies) == 0 {
@@ -77,6 +84,9 @@ func main() {
 	}
 	fmt.Printf("requests=%d concurrency=%d duration=%s throughput=%.2f req/s\n", completed.Load(), *concurrency, time.Since(started).Round(time.Millisecond), float64(completed.Load())/time.Since(started).Seconds())
 	fmt.Printf("p50=%s p95=%s p99=%s statuses=%v\n", percentile(latencies, 0.50), percentile(latencies, 0.95), percentile(latencies, 0.99), statusCounts)
+	if len(errorBodies) > 0 {
+		fmt.Printf("unexpected response bodies=%v\n", errorBodies)
+	}
 }
 
 func createEvent(client *http.Client, baseURL, eventID string, seats int) {

@@ -63,6 +63,22 @@ One local in-memory baseline on a MacBook Pro:
 
 All 100 available seats were reserved exactly once. This is an in-memory correctness and client baseline, not a PostgreSQL capacity claim.
 
+PostgreSQL-backed baseline from the same scenario:
+
+| Metric | Result |
+| --- | ---: |
+| Requests | 1,000 |
+| Concurrency | 100 |
+| Successful reservations | 100 |
+| Seat conflicts | 900 |
+| Unexpected errors | 0 |
+| Throughput | 3,268 req/s |
+| p50 latency | 20.33 ms |
+| p95 latency | 88.40 ms |
+| p99 latency | 127.58 ms |
+
+The API uses a maximum of 20 open PostgreSQL connections and queues excess work in the application pool instead of exhausting the database.
+
 Confirm a payment:
 
 ```bash

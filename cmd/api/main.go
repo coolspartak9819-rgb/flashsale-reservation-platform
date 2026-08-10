@@ -28,6 +28,9 @@ func main() {
 		var err error
 		db, err = sql.Open("postgres", dsn)
 		must(err)
+		db.SetMaxOpenConns(20)
+		db.SetMaxIdleConns(10)
+		db.SetConnMaxLifetime(5 * time.Minute)
 		must(db.PingContext(context.Background()))
 		must(runMigrations(db))
 		repository = store.NewPostgresStore(db)
