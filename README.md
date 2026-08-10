@@ -40,6 +40,29 @@ k6 run load/k6-reservations.js
 
 The expected correctness signal is that responses are only `201 Created` or `409 Conflict`. A successful run must never oversell a seat.
 
+For a dependency-free local benchmark, run the Go load client:
+
+```bash
+go run ./cmd/loadtest -requests 1000 -concurrency 100 -seats 100
+```
+
+The client reports throughput, p50, p95, p99 and HTTP status distribution. The benchmark output is environment-specific and should only be copied into the resume after a clean run.
+
+One local in-memory baseline on a MacBook Pro:
+
+| Metric | Result |
+| --- | ---: |
+| Requests | 1,000 |
+| Concurrency | 100 |
+| Successful reservations | 100 |
+| Seat conflicts | 900 |
+| Throughput | 33,434 req/s |
+| p50 latency | 2.76 ms |
+| p95 latency | 4.57 ms |
+| p99 latency | 5.01 ms |
+
+All 100 available seats were reserved exactly once. This is an in-memory correctness and client baseline, not a PostgreSQL capacity claim.
+
 Confirm a payment:
 
 ```bash
