@@ -29,7 +29,7 @@ Run the PostgreSQL-backed API with Docker Compose:
 docker compose up --build
 ```
 
-When `NATS_URL` is configured, a background publisher sends Outbox events to the `flashsale.events` JetStream subject. Publishing is at-least-once: if the process stops after publishing but before marking the row, the event can be published again and consumers must use the event ID for deduplication.
+When `NATS_URL` is configured, a background publisher sends Outbox events to the `flashsale.events` JetStream subject. Publishing is at-least-once: if the process stops after publishing but before marking the row, the event can be published again and consumers must use the event ID for deduplication. A 30-second publisher lease prevents two API replicas from claiming the same pending Outbox row at the same time.
 
 Run the reservation load scenario after creating `flash-test` with 100 seats:
 

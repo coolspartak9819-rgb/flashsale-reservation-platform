@@ -17,19 +17,24 @@ type OutboxEvent struct {
 	EventType   string
 	AggregateID string
 	Payload     []byte
+	LeaseOwner  string
 }
 
 func NewPostgresStore(db *sql.DB) *PostgresStore { return &PostgresStore{db: db} }
 
-func (s *PostgresStore) ClaimOutbox(ctx context.Context) (OutboxEvent, error) {
+func (s *PostgresStore) ClaimOutbox(ctx context.Context, owner string) (OutboxEvent, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return OutboxEvent{}, err
 	}
 	defer tx.Rollback()
 	var event OutboxEvent
-	err = tx.QueryRowContext(ctx, `SELECT id, event_type, aggregate_id, payload FROM flash_outbox WHERE published_at IS NULL ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&event.ID, &event.EventType, &event.AggregateID, &event.Payload)
+	err = tx.QueryRowContext(ctx, `SELECT id, event_type, aggregate_id, payload FROM flash_outbox WHERE published_at IS NULL AND (lease_until IS NULL OR lease_until < now()) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&event.ID, &event.EventType, &event.AggregateID, &event.Payload)
 	if err != nil {
+		return OutboxEvent{}, err
+	}
+	event.LeaseOwner = owner
+	if _, err := tx.ExecContext(ctx, `UPDATE flash_outbox SET lease_until = now() + interval '30 seconds', lease_owner = $1 WHERE id = $2`, owner, event.ID); err != nil {
 		return OutboxEvent{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -38,8 +43,8 @@ func (s *PostgresStore) ClaimOutbox(ctx context.Context) (OutboxEvent, error) {
 	return event, nil
 }
 
-func (s *PostgresStore) MarkOutboxPublished(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE flash_outbox SET published_at = now() WHERE id = $1 AND published_at IS NULL`, id)
+func (s *PostgresStore) MarkOutboxPublished(ctx context.Context, id int64, owner string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE flash_outbox SET published_at = now(), lease_until = NULL, lease_owner = NULL WHERE id = $1 AND lease_owner = $2 AND published_at IS NULL`, id, owner)
 	return err
 }
 

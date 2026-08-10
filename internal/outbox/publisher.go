@@ -16,10 +16,11 @@ type Publisher struct {
 	store *store.PostgresStore
 	js    nats.JetStreamContext
 	log   *slog.Logger
+	owner string
 }
 
 func NewPublisher(repository *store.PostgresStore, js nats.JetStreamContext, logger *slog.Logger) *Publisher {
-	return &Publisher{store: repository, js: js, log: logger}
+	return &Publisher{store: repository, js: js, log: logger, owner: workerID()}
 }
 
 func (p *Publisher) Run(ctx context.Context) {
@@ -44,7 +45,7 @@ func (p *Publisher) Run(ctx context.Context) {
 }
 
 func (p *Publisher) publishOne(ctx context.Context) error {
-	event, err := p.store.ClaimOutbox(ctx)
+	event, err := p.store.ClaimOutbox(ctx, p.owner)
 	if err != nil {
 		return err
 	}
@@ -55,5 +56,9 @@ func (p *Publisher) publishOne(ctx context.Context) error {
 	if _, err = p.js.Publish("flashsale.events", body); err != nil {
 		return err
 	}
-	return p.store.MarkOutboxPublished(ctx, event.ID)
+	return p.store.MarkOutboxPublished(ctx, event.ID, p.owner)
+}
+
+func workerID() string {
+	return "outbox-" + time.Now().UTC().Format("20060102150405.000000000")
 }

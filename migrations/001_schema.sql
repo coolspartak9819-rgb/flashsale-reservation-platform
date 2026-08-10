@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS flash_outbox (
     aggregate_id text NOT NULL,
     payload jsonb NOT NULL,
     created_at timestamptz NOT NULL,
-    published_at timestamptz
+    published_at timestamptz,
+    lease_until timestamptz,
+    lease_owner text
 );
 
 CREATE INDEX IF NOT EXISTS flash_outbox_pending_idx ON flash_outbox (created_at) WHERE published_at IS NULL;
+CREATE INDEX IF NOT EXISTS flash_outbox_claim_idx ON flash_outbox (id) WHERE published_at IS NULL;
