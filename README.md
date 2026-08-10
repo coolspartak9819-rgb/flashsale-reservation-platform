@@ -12,6 +12,7 @@ Go service that protects a limited inventory during a traffic spike. The first s
 - payment confirmation with `active`, `confirmed` and `expired` states;
 - transactional Outbox records for reservation creation, confirmation and expiration;
 - NATS JetStream publisher that marks Outbox rows only after broker acknowledgement;
+- Prometheus-compatible metrics at `/metrics`;
 - background expiration loop for abandoned reservations;
 - concurrent reservation test with 100 goroutines;
 - clear conflict responses for an already reserved seat.
@@ -45,6 +46,12 @@ Confirm a payment:
 curl -X POST http://localhost:8080/v1/reservations/<reservation_id>/confirm \\
   -H 'Content-Type: application/json' \\
   -d '{"payment_id":"payment-123"}'
+```
+
+Inspect metrics:
+
+```bash
+curl http://localhost:8080/metrics
 ```
 
 Create an event:

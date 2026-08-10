@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coolspartak9819-rgb/flashsale-reservation-platform/internal/httpapi"
+	"github.com/coolspartak9819-rgb/flashsale-reservation-platform/internal/metrics"
 	"github.com/coolspartak9819-rgb/flashsale-reservation-platform/internal/outbox"
 	"github.com/coolspartak9819-rgb/flashsale-reservation-platform/internal/store"
 	_ "github.com/lib/pq"
@@ -17,6 +18,7 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	serviceMetrics := &metrics.Metrics{}
 	var repository store.ReservationStore = store.New()
 	var db *sql.DB
 	var cancel context.CancelFunc
@@ -46,7 +48,7 @@ func main() {
 			logger.Info("nats outbox publisher enabled")
 		}
 	}
-	server := &http.Server{Addr: env("HTTP_ADDR", ":8080"), Handler: httpapi.New(repository), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: env("HTTP_ADDR", ":8080"), Handler: httpapi.New(repository, serviceMetrics), ReadHeaderTimeout: 5 * time.Second}
 	logger.Info("flash sale API started", "addr", server.Addr)
 	if expirer, ok := repository.(interface{ ExpireReservations(time.Time) (int, error) }); ok {
 		go expireLoop(expirer, logger)
