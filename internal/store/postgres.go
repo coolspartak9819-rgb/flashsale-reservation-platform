@@ -12,7 +12,36 @@ import (
 
 type PostgresStore struct{ db *sql.DB }
 
+type OutboxEvent struct {
+	ID          int64
+	EventType   string
+	AggregateID string
+	Payload     []byte
+}
+
 func NewPostgresStore(db *sql.DB) *PostgresStore { return &PostgresStore{db: db} }
+
+func (s *PostgresStore) ClaimOutbox(ctx context.Context) (OutboxEvent, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return OutboxEvent{}, err
+	}
+	defer tx.Rollback()
+	var event OutboxEvent
+	err = tx.QueryRowContext(ctx, `SELECT id, event_type, aggregate_id, payload FROM flash_outbox WHERE published_at IS NULL ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&event.ID, &event.EventType, &event.AggregateID, &event.Payload)
+	if err != nil {
+		return OutboxEvent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return OutboxEvent{}, err
+	}
+	return event, nil
+}
+
+func (s *PostgresStore) MarkOutboxPublished(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE flash_outbox SET published_at = now() WHERE id = $1 AND published_at IS NULL`, id)
+	return err
+}
 
 func (s *PostgresStore) CreateEvent(event domain.Event) error {
 	_, err := s.db.Exec(`INSERT INTO flash_events (event_id, name, seat_count, created_at) VALUES ($1, $2, $3, $4)`, event.ID, event.Name, event.SeatCount, event.CreatedAt)

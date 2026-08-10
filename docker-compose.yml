@@ -4,10 +4,12 @@ services:
     environment:
       HTTP_ADDR: ":8080"
       POSTGRES_DSN: postgres://flashsale:flashsale@postgres:5432/flashsale?sslmode=disable
+      NATS_URL: nats://nats:4222
     ports:
       - "8080:8080"
     depends_on:
       postgres: { condition: service_healthy }
+      nats: { condition: service_started }
 
   postgres:
     image: postgres:17-alpine
@@ -24,5 +26,12 @@ services:
       timeout: 3s
       retries: 10
 
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+
 volumes:
   postgres-data:
+  nats-data:

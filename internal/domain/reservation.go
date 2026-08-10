@@ -21,6 +21,7 @@ type Reservation struct {
 }
 
 const (
-	ReservationActive  = "active"
-	ReservationExpired = "expired"
+	ReservationActive    = "active"
+	ReservationExpired   = "expired"
+	ReservationConfirmed = "confirmed"
 )

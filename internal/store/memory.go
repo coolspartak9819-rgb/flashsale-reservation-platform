@@ -10,10 +10,13 @@ import (
 )
 
 var (
-	ErrEventExists   = errors.New("event already exists")
-	ErrEventNotFound = errors.New("event not found")
-	ErrSeatTaken     = errors.New("seat is already reserved")
-	ErrInvalidSeat   = errors.New("seat is outside event capacity")
+	ErrEventExists         = errors.New("event already exists")
+	ErrEventNotFound       = errors.New("event not found")
+	ErrSeatTaken           = errors.New("seat is already reserved")
+	ErrInvalidSeat         = errors.New("seat is outside event capacity")
+	ErrReservationNotFound = errors.New("reservation not found")
+	ErrReservationExpired  = errors.New("reservation has expired")
+	ErrReservationState    = errors.New("reservation cannot be confirmed in its current state")
 )
 
 type Store struct {
@@ -27,6 +30,8 @@ type Store struct {
 type ReservationStore interface {
 	CreateEvent(domain.Event) error
 	Reserve(string, string, string, string, time.Duration) (domain.Reservation, error)
+	ConfirmReservation(string, string) (domain.Reservation, error)
+	ExpireReservations(time.Time) (int, error)
 }
 
 func New() *Store {
@@ -83,4 +88,41 @@ func (s *Store) Reserve(eventID, userID, seatID, idempotencyKey string, ttl time
 	s.byIdempotency[idempotencyID] = reservation.ID
 	s.bySeat[seatKey] = reservation.ID
 	return reservation, nil
+}
+
+func (s *Store) ConfirmReservation(id, paymentID string) (domain.Reservation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reservation, ok := s.reservations[id]
+	if !ok {
+		return domain.Reservation{}, ErrReservationNotFound
+	}
+	if reservation.Status == domain.ReservationConfirmed {
+		return reservation, nil
+	}
+	if reservation.Status != domain.ReservationActive {
+		return domain.Reservation{}, ErrReservationState
+	}
+	if !reservation.ExpiresAt.After(time.Now()) {
+		reservation.Status = domain.ReservationExpired
+		s.reservations[id] = reservation
+		return domain.Reservation{}, ErrReservationExpired
+	}
+	reservation.Status = domain.ReservationConfirmed
+	s.reservations[id] = reservation
+	return reservation, nil
+}
+
+func (s *Store) ExpireReservations(now time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for id, reservation := range s.reservations {
+		if reservation.Status == domain.ReservationActive && !reservation.ExpiresAt.After(now) {
+			reservation.Status = domain.ReservationExpired
+			s.reservations[id] = reservation
+			count++
+		}
+	}
+	return count, nil
 }

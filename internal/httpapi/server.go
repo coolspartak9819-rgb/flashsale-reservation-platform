@@ -21,7 +21,33 @@ func New(store store.ReservationStore) http.Handler {
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("POST /v1/events", s.createEvent)
 	mux.HandleFunc("POST /v1/events/", s.reserve)
+	mux.HandleFunc("POST /v1/reservations/", s.confirm)
 	return mux
+}
+
+func (s *Server) confirm(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) != 4 || parts[0] != "v1" || parts[1] != "reservations" || parts[3] != "confirm" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "route not found"})
+		return
+	}
+	var request struct {
+		PaymentID string `json:"payment_id"`
+	}
+	if !decode(r, &request) || request.PaymentID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payment_id is required"})
+		return
+	}
+	reservation, err := s.store.ConfirmReservation(parts[2], request.PaymentID)
+	if err != nil {
+		status := http.StatusConflict
+		if errors.Is(err, store.ErrReservationNotFound) {
+			status = http.StatusNotFound
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, reservation)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
